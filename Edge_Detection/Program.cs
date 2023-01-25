@@ -18,9 +18,9 @@ namespace Edge_Detection
         static void Main()
         {
             int x = 5, y = 3;
-            int retVal = MyProc1(x, y);
+            //int retVal = MyProc1(x, y);
             Console.Write("Moja pierwsza wartość obliczona w asm to:");
-            Console.WriteLine(retVal);
+            //Console.WriteLine(retVal);
             Console.ReadLine();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
