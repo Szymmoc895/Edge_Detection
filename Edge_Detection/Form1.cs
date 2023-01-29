@@ -24,20 +24,26 @@ namespace Edge_Detection
         Image pic2; //the second image, which displays the edges
         Stopwatch clock;
 
+
         double[,] xkernell = xSobel;
         double[,] ykernell = ySobel;
+        
 
         [DllImport(@"C:\Users\szymk\source\repos\Edge_Detection\x64\Debug\Asm.dll")]
         static extern void fnSobelFilter(byte[] data, byte[] result, int start, int stop, float row_size);
         public List<Task> threads = new List<Task>();
         public Form1()
         {
+            int threadsNumber = Environment.ProcessorCount;
             InitializeComponent();
+            trackBar1.Value = threadsNumber;
+            label1.Text = "Threads used: " + trackBar1.Value.ToString();
+            radioButton1.Checked= true;
         }
 
         private void trackBar1_Scroll(object sender, EventArgs e)
         {
-
+            label1.Text = "Threads used: " + trackBar1.Value.ToString();
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -59,32 +65,10 @@ namespace Edge_Detection
         private void button3_Click(object sender, EventArgs e)
         {
             clock = Stopwatch.StartNew();
-
             Bitmap bmp = new Bitmap(pictureBox1.Image);
-
             BitmapSource bs = BitmapToBitmapSource(bmp);
-            byte[] newArray = new byte[bs.PixelWidth * bs.PixelHeight];
-            //newArray = ToByteArray(ToBmpBGRArray(bs));
-            newArray = grayscale(bmp);
-            int arraySize = (bs.PixelHeight) * (bs.PixelWidth);
-            int[] calcArray = new int[arraySize];
-            for (int i = 0; i < arraySize; i++) calcArray[i] = 0;
-            Sobel(newArray, bs.PixelHeight, bs.PixelWidth, newArray.Length, 0, calcArray);
-
-            int minimum, maximum;
-            minimum = maximum = calcArray[0];
-            for (int i = 0; i < arraySize; i++)
-            {
-                if (calcArray[i] < minimum) minimum = calcArray[i];
-                if (calcArray[i] > maximum) maximum = calcArray[i];
-            }
-            byte[] normalized = new byte[arraySize];
-            Normalize(calcArray, minimum, maximum, (calcArray.Length - 1), 0, normalized);
-            Bitmap bmp3 = FromGrayscale(normalized, bmp);
-            //Bitmap bmp2 = new Bitmap(BitmapFromSource(BmpBGRArrayToImage(normalized, bs.PixelWidth, bs.PixelHeight, bs.Format)));
             Bitmap bmp2 = new Bitmap(ConvolutionFilter(bmp, 1, xSobel, ySobel));
             pictureBox2.Image = bmp2;
-
             clock.Stop();
             float time = clock.ElapsedMilliseconds;
             label3.Text = "Analyze: " + time / 1000 + " sec";
@@ -108,42 +92,7 @@ namespace Edge_Detection
             return resultImage;
         }
 
-        public static void Sobel(byte[] grayArray, int imageHeight, int imageWidth, int bytesToCalculate, int start, int[] calculatedArray)
-        {
-            int GX, GY;
 
-            for (int i = start; i < start + bytesToCalculate; i++)
-            {
-                int row = (i - i % imageWidth) / imageWidth;    //safe row calculation
-
-                if (i % imageWidth == 0 || i % imageWidth == imageWidth - 1 || row == 0) continue;
-                else if (row == imageHeight - 1) break;
-                GX = grayArray[i + 1] * -2 + grayArray[i - 1] * 2 +
-                    grayArray[i + 1 - imageWidth] * -1 + grayArray[i - 1 - imageWidth] * 1 +
-                    grayArray[i + 1 + imageWidth] * -1 + grayArray[i - 1 + imageWidth] * 1;
-
-                GY = grayArray[i + imageWidth] * -2 + grayArray[i - imageWidth] * 2 +
-                    grayArray[i - 1 + imageWidth] * -1 + grayArray[i - 1 - imageWidth] * 1 +
-                    grayArray[i + 1 + imageWidth] * -1 + grayArray[i + 1 - imageWidth] * 1;
-
-                //power of 2
-                GX *= GX;
-                GY *= GY;
-                calculatedArray[i] = (int)Math.Sqrt(GX + GY);
-            }
-        }
-
-        void Normalize(int[] source, int minimum, int maximum, int bytesToCalculate, int start, byte[] calculatedArray)
-        {
-            int difference = maximum - minimum;
-
-            if (difference == 0) difference = 1; //preventing division by 0
-
-            for (int i = start; i < start + bytesToCalculate; i++)
-            {
-                calculatedArray[i] = Convert.ToByte((source[i] - minimum) / (difference * 1.0) * 255);
-            }
-        }
 
         public static float[] ToFloatArray(byte[] byteArray)
         {
@@ -223,38 +172,6 @@ namespace Edge_Detection
             //Unlock the bits
             B.UnlockBits(bmpData);
 
-
-            /*            //create a blank bitmap the same size as original
-                        Bitmap newBitmap = new Bitmap(bmp.Width, bmp.Height);
-
-                        //get a graphics object from the new image
-                        using (Graphics g = Graphics.FromImage(newBitmap))
-                        {
-
-                            //create the grayscale ColorMatrix
-                            ColorMatrix colorMatrix = new ColorMatrix(
-                               new float[][]
-                               {
-                         new float[] {.3f, .3f, .3f, 0, 0},
-                         new float[] {.59f, .59f, .59f, 0, 0},
-                         new float[] {.11f, .11f, .11f, 0, 0},
-                         new float[] {0, 0, 0, 1, 0},
-                         new float[] {0, 0, 0, 0, 1}
-                               });
-
-                            //create some image attributes
-                            using (ImageAttributes attributes = new ImageAttributes())
-                            {
-
-                                //set the color matrix attribute
-                                attributes.SetColorMatrix(colorMatrix);
-
-                                //draw the original image on the new image
-                                //using the grayscale color matrix
-                                g.DrawImage(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height),
-                                            0, 0, bmp.Width, bmp.Height, GraphicsUnit.Pixel, attributes);
-                            }
-                        }*/
             return ToByteArray(ToBmpBGRArray(BitmapToBitmapSource(B)));
 
         }
@@ -298,7 +215,7 @@ namespace Edge_Detection
             return pixelBuffer;
         }
 
-        private static Bitmap ConvolutionFilter(Bitmap sourceImage, int numberOfThreads,
+        public static Bitmap ConvolutionFilter(Bitmap sourceImage, int numberOfThreads,
   double[,] xkernel,
   double[,] ykernel, double factor = 1, int bias = 0, bool grayscale = true)
         {
@@ -330,18 +247,6 @@ namespace Edge_Detection
             //Convert your image to grayscale if necessary
             if (grayscale == true)
             {
-                float rgb = 0;
-                for (int i = 0; i < pixelBuffer.Length; i += 4)
-                {
-                    rgb = pixelBuffer[i] * .21f;
-                    rgb += pixelBuffer[i + 1] * .71f;
-                    rgb += pixelBuffer[i + 2] * .071f;
-                    pixelBuffer[i] = (byte)rgb;
-                    pixelBuffer[i + 1] = pixelBuffer[i];
-                    pixelBuffer[i + 2] = pixelBuffer[i];
-                    pixelBuffer[i + 3] = 255;
-                }
-
                 pixelBuffer = greyScaleGood(pixelBuffer);
             }
 
@@ -384,65 +289,40 @@ namespace Edge_Detection
             float startPos1 = 1;
             float endPos1 = height - 1;
 
-            //asm chuj
-            //for (int OffsetY = 1; OffsetY < width - 1; OffsetY++)
-            {
-               //fnSobelFilter(pixelBuffer, resultBuffer, jeden, stopp, row_size);
 
-            }
 
             //for (int i = 0; i < resultBuffer.Length; i++)
             //{
             //    if (resultBuffer[i] != 0)
             //        Debug.WriteLine($"Jest inne niż 0 na pozycji {i}");
             //}
-
-
-            //pixelBuffer = ToByteArray(newSource);
-            //resultBuffer = ToByteArray(newResult);
             var calcBarPerTask = Enumerable.Repeat(calcBar, numberOfThreads).ToList();
 
             for (int i = remainder; i > 0; i--)
                 calcBarPerTask[i]++;
 
-            for (int threadNumber = 0; threadNumber < numberOfThreads; threadNumber++)
+            Form1 frm1 = new Form1();
+            if (frm1.radioButton1.Checked == true)  //not working
             {
-                var tidx = threadNumber;
-                var startHeight = calcBarPerTask.Take(tidx).Sum();
-                var endHeight = startHeight + calcBarPerTask[tidx];
 
-                watki.Add(Task.Run(() => SobelAlg(pixelBuffer, resultBuffer, srcData, width,
-                    tidx == 0 ? startHeight + 1 : startHeight, tidx == threadNumber - 1 ? endHeight - 1 : endHeight)));
+                for (int threadNumber = 0; threadNumber < numberOfThreads; threadNumber++)
+                {
+                    var tidx = threadNumber;
+                    var startHeight = calcBarPerTask.Take(tidx).Sum();
+                    var endHeight = startHeight + calcBarPerTask[tidx];
 
-                //watki.Add(Task.Run(() => SobelAlg(pixelBuffer, resultBuffer, xkernel, ykernel, srcData, width,
-                //    height, filterOffset, calcOffset, byteOffset, numberOfThreads, chuj, chuj2)));
+                    watki.Add(Task.Run(() => SobelAlg(pixelBuffer, resultBuffer, srcData, width,
+                        tidx == 0 ? startHeight + 1 : startHeight, tidx == threadNumber - 1 ? endHeight - 1 : endHeight)));
 
-                //int tempThreadNumber = threadNumber;
+                }
+            }
+            else 
+            {
+                //for (int OffsetY = 1; OffsetY < width - 1; OffsetY++)
+                {
+                    //fnSobelFilter(pixelBuffer, resultBuffer, jeden, stopp, row_size);
 
-                ////if (threadNumber + 1 == numberOfThreads)
-                ////    endPos = height - 1;
-                ////else
-                ////    endPos = pieceLength * (tempThreadNumber + 1) - 1;
-
-                ////int endPos = height / 2;
-                //int tempp = startPos + tempThreadNumber * pieceLength;
-                //endPos = pieceLength * (tempThreadNumber + 1) - 1;
-                //int chuj = tempThreadNumber == 0 ? tempp + 1 : tempp;
-                //int chuj2 = tempThreadNumber == threadNumber - 1 ? endPos - 1 : endPos;
-
-                //watki.Add(Task.Run(() => SobelAlg(pixelBuffer, resultBuffer, xkernel, ykernel, srcData, width,
-                //    height, filterOffset, calcOffset, byteOffset, numberOfThreads, chuj, chuj2)));
-
-                ////watki.Add(Task.Run(() => SobelAlg(pixelBuffer, resultBuffer, xkernel, ykernel, srcData, width,
-                ////    height, filterOffset, calcOffset, byteOffset, numberOfThreads, 1, endPos)));
-
-                ////watki.Add(Task.Run(() => SobelAlg(pixelBuffer, resultBuffer, xkernel, ykernel, srcData, width,
-                ////    height, filterOffset, calcOffset, byteOffset, numberOfThreads, endPos, height - 1)));
-                ////startPos = 0;
-                ///
-
-
-
+                }
             }
             Task.WaitAll(watki.ToArray());
             //Start with the pixel that is offset 1 from top and 1 from the left side
@@ -557,5 +437,6 @@ namespace Edge_Detection
                 };
             }
         }
+
     }
 }
