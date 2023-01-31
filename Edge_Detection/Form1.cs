@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -25,12 +26,11 @@ namespace Edge_Detection
         Stopwatch clock;
 
 
-        double[,] xkernell = xSobel;
-        double[,] ykernell = ySobel;
-        
+        int[,] xkernell = xSobel;
+        int[,] ykernell = ySobel;
 
-        [DllImport(@"C:\Users\szymk\source\repos\Edge_Detection\x64\Debug\Asm.dll")]
-        static extern void fnSobelFilter(byte[] data, byte[] result, int start, int stop, float row_size);
+
+
         public List<Task> threads = new List<Task>();
         public Form1()
         {
@@ -38,7 +38,7 @@ namespace Edge_Detection
             InitializeComponent();
             trackBar1.Value = threadsNumber;
             label1.Text = "Threads used: " + trackBar1.Value.ToString();
-            radioButton1.Checked= true;
+            radioButton1.Checked = true;
         }
 
         private void trackBar1_Scroll(object sender, EventArgs e)
@@ -216,8 +216,8 @@ namespace Edge_Detection
         }
 
         public static Bitmap ConvolutionFilter(Bitmap sourceImage, int numberOfThreads,
-  double[,] xkernel,
-  double[,] ykernel, double factor = 1, int bias = 0, bool grayscale = true)
+  int[,] xkernel,
+  int[,] ykernel, double factor = 1, int bias = 0, bool grayscale = true)
         {
 
             //Image dimensions stored in variables for convenience
@@ -316,7 +316,7 @@ namespace Edge_Detection
 
                 }
             }
-            else 
+            else
             {
                 //for (int OffsetY = 1; OffsetY < width - 1; OffsetY++)
                 {
@@ -345,22 +345,30 @@ namespace Edge_Detection
             return resultImage;
         }
 
+        static int[] xKernel = new int[] { -1, 0, 1, -2, 0, 2, -1, 0, 1 };
+
+        static int[] yKernel = new int[] { 1, 2, 1, 0, 0, 0, -1, -2, -1 };
+
+
+        [DllImport(@"C:\Users\szymk\source\repos\Edge_Detection\x64\Debug\Asm.dll")]
+        static extern void fnSobelFilter(byte[] pixelBuffer, int[] outValues, int[] xKernel, int[] yKernel, Vector2 v);
+
         private static void SobelAlg(byte[] pixelBuffer, byte[] resultBuffer, BitmapData srcData,
             int width, int startPos, int endPos)
         {
-            double xr = 0.0;
-            double xg = 0.0;
-            double xb = 0.0;
-            double yr = 0.0;
-            double yg = 0.0;
-            double yb = 0.0;
-            double rt = 0.0;
-            double gt = 0.0;
-            double bt = 0.0;
+            int xr = 0;
+            int xg = 0;
+            int xb = 0;
+            int yr = 0;
+            int yg = 0;
+            int yb = 0;
+            double rt = 0;
+            double gt = 0;
+            double bt = 0;
             int filterOffset = 1;
             //width = 4 * width;
-            double[,] xkernelll = xSobel;
-            double[,] ykernelll = ySobel;
+            int[,] xkernelll = xSobel;
+            int[,] ykernelll = ySobel;
 
             for (int OffsetY = startPos; OffsetY < endPos; OffsetY++)
             {
@@ -370,23 +378,34 @@ namespace Edge_Detection
                     xr = xg = xb = yr = yg = yb = 0;
                     rt = gt = bt = 0.0;
 
+                    //utworzyc strukture danych z xy rgb
+                    // przesuwac po bitach
+                    // zrobic w asm tylko dwa fory
+                    // przekazywac wszystko, nic nie tworzyc
+
                     //position of the kernel center pixel
                     int byteOffset = OffsetY * srcData.Stride + OffsetX * 4;
+                    //5396 stride
+                    //5400 byteOffset
+
+                    //DUPEMBLER
+                    int[] outValues = new int[6];
+                    fnSobelFilter(pixelBuffer, outValues, xKernel, yKernel, new Vector2((float)srcData.Stride, (float)byteOffset));
 
                     //kernel calculations
-                    for (int filterY = -filterOffset; filterY <= filterOffset; filterY++)
+/*                    for (int filterY = -filterOffset; filterY <= filterOffset; filterY++)
                     {
                         for (int filterX = -filterOffset; filterX <= filterOffset; filterX++)
                         {
                             int calcOffset = byteOffset + filterX * 4 + filterY * srcData.Stride;
-                            xb += (double)(pixelBuffer[calcOffset]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
-                            xg += (double)(pixelBuffer[calcOffset + 1]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
-                            xr += (double)(pixelBuffer[calcOffset + 2]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
-                            yb += (double)(pixelBuffer[calcOffset]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
-                            yg += (double)(pixelBuffer[calcOffset + 1]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
-                            yr += (double)(pixelBuffer[calcOffset + 2]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
+                            xb += (pixelBuffer[calcOffset]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
+                            xg += (pixelBuffer[calcOffset + 1]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
+                            xr += (pixelBuffer[calcOffset + 2]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
+                            yb += (pixelBuffer[calcOffset]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
+                            yg += (pixelBuffer[calcOffset + 1]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
+                            yr += (pixelBuffer[calcOffset + 2]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
                         }
-                    }
+                    }*/
 
                     //total rgb values for this pixel
                     bt = Math.Sqrt((xb * xb) + (yb * yb));
@@ -411,11 +430,11 @@ namespace Edge_Detection
         }
 
         //Sobel operator kernel for horizontal pixel changes
-        private static double[,] xSobel
+        private static int[,] xSobel
         {
             get
             {
-                return new double[,]
+                return new int[,]
                 {
             { -1, 0, 1 },
             { -2, 0, 2 },
@@ -425,11 +444,11 @@ namespace Edge_Detection
         }
 
         //Sobel operator kernel for vertical pixel changes
-        private static double[,] ySobel
+        private static int[,] ySobel
         {
             get
             {
-                return new double[,]
+                return new int[,]
                 {
             {  1,  2,  1 },
             {  0,  0,  0 },
