@@ -29,8 +29,9 @@ namespace Edge_Detection
         int[,] xkernell = xSobel;
         int[,] ykernell = ySobel;
 
+        public Action<byte[], byte[], int, int, Vector2> FuncToCall { get; set; }
 
-
+       
         public List<Task> threads = new List<Task>();
         public Form1()
         {
@@ -345,13 +346,13 @@ namespace Edge_Detection
             return resultImage;
         }
 
-        static int[] xKernel = new int[] { -1, 0, 1, -2, 0, 2, -1, 0, 1 };
+        static float[] xKernel = new float[] { -1, 0, 1, -2, 0, 2, -1, 0, 1 };
 
-        static int[] yKernel = new int[] { 1, 2, 1, 0, 0, 0, -1, -2, -1 };
+        static float[] yKernel = new float[] { 1, 2, 1, 0, 0, 0, -1, -2, -1 };
 
 
         [DllImport(@"C:\Users\szymk\source\repos\Edge_Detection\x64\Debug\Asm.dll")]
-        static extern void fnSobelFilter(byte[] pixelBuffer, int[] outValues, int[] xKernel, int[] yKernel, Vector2 v);
+        static extern void fnSobelFilter(byte[] pixelBuffer, int[] outValues, float[] xKernel, float[] yKernel, Vector2 v);
 
         private static void SobelAlg(byte[] pixelBuffer, byte[] resultBuffer, BitmapData srcData,
             int width, int startPos, int endPos)
@@ -393,11 +394,13 @@ namespace Edge_Detection
                     fnSobelFilter(pixelBuffer, outValues, xKernel, yKernel, new Vector2((float)srcData.Stride, (float)byteOffset));
 
                     //kernel calculations
+                    int calcOffset = 0;
+
 /*                    for (int filterY = -filterOffset; filterY <= filterOffset; filterY++)
                     {
                         for (int filterX = -filterOffset; filterX <= filterOffset; filterX++)
                         {
-                            int calcOffset = byteOffset + filterX * 4 + filterY * srcData.Stride;
+                            calcOffset = byteOffset + filterX * 4 + filterY * srcData.Stride; //0
                             xb += (pixelBuffer[calcOffset]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
                             xg += (pixelBuffer[calcOffset + 1]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
                             xr += (pixelBuffer[calcOffset + 2]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
@@ -405,7 +408,16 @@ namespace Edge_Detection
                             yg += (pixelBuffer[calcOffset + 1]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
                             yr += (pixelBuffer[calcOffset + 2]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
                         }
-                    }*/
+                    }*/                    
+
+                    xb = outValues[0];
+                    xg = outValues[1];
+                    xr = outValues[2];
+
+                    yb = outValues[3];
+                    yg = outValues[4];
+                    yr = outValues[5];
+
 
                     //total rgb values for this pixel
                     bt = Math.Sqrt((xb * xb) + (yb * yb));
