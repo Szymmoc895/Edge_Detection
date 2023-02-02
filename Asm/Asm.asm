@@ -11,7 +11,7 @@ temp qword ?
 fnSobelFilter proc  
 
 mov rsi, rcx ;adres zrodlowej tablicy do rsi
-mov rdi, rdx ;adres tablicy wyjsciowej (z xb i inne chuje ) do rdi
+mov rdi, rdx ;adres tablicy wyjsciowej do rdi
 
 ;w r8 jest xKernel
 ;w r9 jest yKernel
@@ -59,7 +59,7 @@ loopY:
 		CVTTSS2SI rbx, xmm5 ;calcOffset(xmm5) do rbx
 
 		xor rcx, rcx
-		mov cl, [rsi+rbx]	;pixelBuffer[calcOffset]->liczba od 0-255 (cl jest 8bit, nie potrzebujemy więcej)
+		mov cl, [rsi+rbx]	;pixelBuffer[calcOffset]->liczba od 0-255 (cl jest 8bit, nie potrzebujemy więcej, nie dzialalo jak probowalem inaczej)
 
 		;(filterY + filterOffset) *3 + filterX + filterOffset
 		movss xmm6, xmm0	;filterY do XMM6
@@ -153,6 +153,6 @@ loopYKoniec:
 	CVTTSS2SI rax, xmm13
 	mov [rdi+20], rax 
 
-	ret				;powr鏒 z procedury
+	ret				;powrot z procedury
 fnSobelFilter endp	
 end

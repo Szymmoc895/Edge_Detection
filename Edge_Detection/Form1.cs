@@ -24,6 +24,7 @@ namespace Edge_Detection
         Image pic; //the first image, which the user loads
         Image pic2; //the second image, which displays the edges
         Stopwatch clock;
+        Bitmap bmp;
 
 
         int[,] xkernell = xSobel;
@@ -66,68 +67,17 @@ namespace Edge_Detection
         private void button3_Click(object sender, EventArgs e)
         {
             clock = Stopwatch.StartNew();
-            Bitmap bmp = new Bitmap(pictureBox1.Image);
-            BitmapSource bs = BitmapToBitmapSource(bmp);
-            Bitmap bmp2 = new Bitmap(ConvolutionFilter(bmp, 1, xSobel, ySobel));
+            bmp = new Bitmap(pictureBox1.Image);
+            int threads = trackBar1.Value;
+            Bitmap bmp2 = new Bitmap(ConvolutionFilter(bmp, threads, radioButton1, radioButton2, xSobel, ySobel));
             pictureBox2.Image = bmp2;
             clock.Stop();
             float time = clock.ElapsedMilliseconds;
             label3.Text = "Analyze: " + time / 1000 + " sec";
+            bmp.Dispose();
+            //bmp2.Dispose();
         }
 
-        public Bitmap FromGrayscale(byte[] arr, Bitmap bmp)
-        {
-            //Create new bitmap which will hold the processed data
-            Bitmap resultImage = new Bitmap(bmp.Width * 3, bmp.Height * 3);
-
-            //Lock bits into system memory
-            BitmapData resultData = resultImage.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, bmp.PixelFormat);
-
-            //Copy from byte array that holds processed data to bitmap
-            Marshal.Copy(arr, 0, resultData.Scan0, arr.Length);
-
-            //Unlock bits from system memory
-            resultImage.UnlockBits(resultData);
-
-            //Return processed image
-            return resultImage;
-        }
-
-
-
-        public static float[] ToFloatArray(byte[] byteArray)
-        {
-            var newFloatArray = new float[byteArray.Length];
-            for (int i = 0; i < newFloatArray.Length; i++)
-            {
-                newFloatArray[i] = (float)byteArray[i];
-            }
-            return newFloatArray;
-        }
-
-        public static float[] ToBmpBGRArray(BitmapSource bitmapSource)
-        {
-            int stride = bitmapSource.PixelWidth * (bitmapSource.Format.BitsPerPixel / 8);
-            byte[] bytePixels = new byte[bitmapSource.PixelHeight * stride];
-
-            bitmapSource.CopyPixels(bytePixels, stride, 0);
-
-            float[] floatPixels = ToFloatArray(bytePixels);
-
-            return floatPixels;
-        }
-
-
-
-        public static byte[] ToByteArray(float[] floatArray)
-        {
-            var newByteArray = new byte[floatArray.Length];
-            for (int i = 0; i < newByteArray.Length; i++)
-            {
-                newByteArray[i] = (byte)floatArray[i];
-            }
-            return newByteArray;
-        }
         public static BitmapSource BitmapToBitmapSource(System.Drawing.Bitmap source)
         {
             using (MemoryStream memory = new MemoryStream())
@@ -140,63 +90,6 @@ namespace Edge_Detection
                 bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
                 bitmapImage.EndInit();
                 return bitmapImage;
-            }
-        }
-        public static byte[] grayscale(Bitmap bmp)
-        {
-            BitmapData bmpData = null;
-            Bitmap B = (Bitmap)bmp.Clone();
-            //Lock bitmap's bits to system memory
-            Rectangle rect = new Rectangle(0, 0, B.Width, B.Height);
-            bmpData = B.LockBits(rect, ImageLockMode.ReadWrite, B.PixelFormat);
-
-            //Scan for the first line
-            IntPtr ptr = bmpData.Scan0;
-
-            //Declare an array in which your RGB values will be stored
-            int bytes = Math.Abs(bmpData.Stride) * B.Height;
-            byte[] rgbValues = new byte[bytes];
-
-            //Copy RGB values in that array
-            Marshal.Copy(ptr, rgbValues, 0, bytes);
-
-            for (int i = 0; i < rgbValues.Length; i += 4)
-            {
-                //Set RGB values in a Array where all RGB values are stored
-                byte gray = (byte)(rgbValues[i] * .21 + rgbValues[i + 1] * .71 + rgbValues[i + 2] * .071);
-                rgbValues[i] = rgbValues[i + 1] = rgbValues[i + 2] = gray;
-            }
-
-            //Copy changed RGB values back to bitmap
-            Marshal.Copy(rgbValues, 0, ptr, bytes);
-
-            //Unlock the bits
-            B.UnlockBits(bmpData);
-
-            return ToByteArray(ToBmpBGRArray(BitmapToBitmapSource(B)));
-
-        }
-        public static BitmapSource BmpBGRArrayToImage(
-            byte[] pixels, int width, int height, PixelFormat pixelFormat)
-        {
-            const int bitsInByte = 8;
-            const int dpi = 96;
-            WriteableBitmap bitmap = new WriteableBitmap(width, height, dpi, dpi, pixelFormat, null);
-
-            bitmap.WritePixels(new Int32Rect(0, 0, width, height), pixels, width * (bitmap.Format.BitsPerPixel / bitsInByte), 0);
-
-            return bitmap;
-        }
-        public static Bitmap BitmapFromSource(BitmapSource source)
-        {
-            using (MemoryStream outStream = new MemoryStream())
-            {
-                BitmapEncoder enc = new PngBitmapEncoder();
-                enc.Frames.Add(BitmapFrame.Create(source));
-                enc.Save(outStream);
-                System.Drawing.Bitmap bitmap = new System.Drawing.Bitmap(outStream);
-
-                return new Bitmap(bitmap);
             }
         }
 
@@ -216,7 +109,7 @@ namespace Edge_Detection
             return pixelBuffer;
         }
 
-        public static Bitmap ConvolutionFilter(Bitmap sourceImage, int numberOfThreads,
+        public static Bitmap ConvolutionFilter(Bitmap sourceImage, int numberOfThreads, RadioButton r1, RadioButton r2,
   int[,] xkernel,
   int[,] ykernel, double factor = 1, int bias = 0, bool grayscale = true)
         {
@@ -284,27 +177,14 @@ namespace Edge_Detection
             int jeden = 1;
             int stopp = height - 1;
             float row_size = width;
-            float[] newSource = ToFloatArray(pixelBuffer);
-            float[] newResult = ToFloatArray(resultBuffer);
 
             float startPos1 = 1;
             float endPos1 = height - 1;
 
-
-
-            //for (int i = 0; i < resultBuffer.Length; i++)
-            //{
-            //    if (resultBuffer[i] != 0)
-            //        Debug.WriteLine($"Jest inne niż 0 na pozycji {i}");
-            //}
             var calcBarPerTask = Enumerable.Repeat(calcBar, numberOfThreads).ToList();
 
             for (int i = remainder; i > 0; i--)
                 calcBarPerTask[i]++;
-
-            Form1 frm1 = new Form1();
-            if (frm1.radioButton1.Checked == true)  //not working
-            {
 
                 for (int threadNumber = 0; threadNumber < numberOfThreads; threadNumber++)
                 {
@@ -313,21 +193,11 @@ namespace Edge_Detection
                     var endHeight = startHeight + calcBarPerTask[tidx];
 
                     watki.Add(Task.Run(() => SobelAlg(pixelBuffer, resultBuffer, srcData, width,
-                        tidx == 0 ? startHeight + 1 : startHeight, tidx == threadNumber - 1 ? endHeight - 1 : endHeight)));
+                        tidx == 0 ? startHeight + 1 : startHeight, tidx == threadNumber - 1 ? endHeight - 1 : endHeight, r1, r2)));
 
                 }
-            }
-            else
-            {
-                //for (int OffsetY = 1; OffsetY < width - 1; OffsetY++)
-                {
-                    //fnSobelFilter(pixelBuffer, resultBuffer, jeden, stopp, row_size);
 
-                }
-            }
             Task.WaitAll(watki.ToArray());
-            //Start with the pixel that is offset 1 from top and 1 from the left side
-            //this is so entire kernel is on your image
 
 
             //Create new bitmap which will hold the processed data
@@ -344,6 +214,8 @@ namespace Edge_Detection
 
             //Return processed image
             return resultImage;
+
+            srcData= null;
         }
 
         static float[] xKernel = new float[] { -1, 0, 1, -2, 0, 2, -1, 0, 1 };
@@ -355,7 +227,7 @@ namespace Edge_Detection
         static extern void fnSobelFilter(byte[] pixelBuffer, int[] outValues, float[] xKernel, float[] yKernel, Vector2 v);
 
         private static void SobelAlg(byte[] pixelBuffer, byte[] resultBuffer, BitmapData srcData,
-            int width, int startPos, int endPos)
+            int width, int startPos, int endPos, RadioButton r1, RadioButton r2)
         {
             int xr = 0;
             int xg = 0;
@@ -379,45 +251,42 @@ namespace Edge_Detection
                     xr = xg = xb = yr = yg = yb = 0;
                     rt = gt = bt = 0.0;
 
-                    //utworzyc strukture danych z xy rgb
-                    // przesuwac po bitach
-                    // zrobic w asm tylko dwa fory
-                    // przekazywac wszystko, nic nie tworzyc
-
                     //position of the kernel center pixel
                     int byteOffset = OffsetY * srcData.Stride + OffsetX * 4;
                     //5396 stride
                     //5400 byteOffset
-
-                    //DUPEMBLER
-                    int[] outValues = new int[6];
-                    fnSobelFilter(pixelBuffer, outValues, xKernel, yKernel, new Vector2((float)srcData.Stride, (float)byteOffset));
-
-                    //kernel calculations
                     int calcOffset = 0;
 
-/*                    for (int filterY = -filterOffset; filterY <= filterOffset; filterY++)
+                    if (r1.Checked == false)
                     {
-                        for (int filterX = -filterOffset; filterX <= filterOffset; filterX++)
+                        int[] outValues = new int[6];
+                        fnSobelFilter(pixelBuffer, outValues, xKernel, yKernel, new Vector2((float)srcData.Stride, (float)byteOffset));
+                        xb = outValues[0];
+                        xg = outValues[1];
+                        xr = outValues[2];
+
+                        yb = outValues[3];
+                        yg = outValues[4];
+                        yr = outValues[5];
+                    }
+                    else
+                    {
+                        //kernel calculations
+
+                        for (int filterY = -filterOffset; filterY <= filterOffset; filterY++)
                         {
-                            calcOffset = byteOffset + filterX * 4 + filterY * srcData.Stride; //0
-                            xb += (pixelBuffer[calcOffset]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
-                            xg += (pixelBuffer[calcOffset + 1]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
-                            xr += (pixelBuffer[calcOffset + 2]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
-                            yb += (pixelBuffer[calcOffset]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
-                            yg += (pixelBuffer[calcOffset + 1]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
-                            yr += (pixelBuffer[calcOffset + 2]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
+                            for (int filterX = -filterOffset; filterX <= filterOffset; filterX++)
+                            {
+                                calcOffset = byteOffset + filterX * 4 + filterY * srcData.Stride; //0
+                                xb += (pixelBuffer[calcOffset]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
+                                xg += (pixelBuffer[calcOffset + 1]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
+                                xr += (pixelBuffer[calcOffset + 2]) * xkernelll[filterY + filterOffset, filterX + filterOffset];
+                                yb += (pixelBuffer[calcOffset]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
+                                yg += (pixelBuffer[calcOffset + 1]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
+                                yr += (pixelBuffer[calcOffset + 2]) * ykernelll[filterY + filterOffset, filterX + filterOffset];
+                            }
                         }
-                    }*/                    
-
-                    xb = outValues[0];
-                    xg = outValues[1];
-                    xr = outValues[2];
-
-                    yb = outValues[3];
-                    yg = outValues[4];
-                    yr = outValues[5];
-
+                    }
 
                     //total rgb values for this pixel
                     bt = Math.Sqrt((xb * xb) + (yb * yb));
@@ -468,6 +337,5 @@ namespace Edge_Detection
                 };
             }
         }
-
     }
 }
